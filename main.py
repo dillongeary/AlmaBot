@@ -46,24 +46,20 @@ def readICALFromFile():
 
 
 def setUp(ical):
-    # Use a breakpoint in the code line below to debug your script.
     binObjects = []
     ecal = icalendar.Calendar.from_ical(ical)
     for component in ecal.walk():
         if component.name == "VEVENT":
             binType = component.get("SUMMARY")
-            match binType:
-                case "HOUSEHOLD":
-                    binPrint = "GENERAL WASTE"
-                case other:
-                    binPrint = binType + " BIN"
+            if binType == "HOUSEHOLD":
+                binPrint = "GENERAL WASTE"
+            else:
+                binPrint = binType + " BIN"
             binDate = component.decoded("dtstart")
             binObjects.append(Bin(binPrint, binDate))
 
     return binObjects
 
-
-timeToRun = time(hour=19, minute=51)
 
 @tasks.loop(hours=24)
 async def checkBins(client, bins):
@@ -71,9 +67,18 @@ async def checkBins(client, bins):
 
     breakflag = True
     for bin in bins:
-        if bin.date == datetime.now().date() + timedelta(0):
-            channel = client.get_channel(628710600071053314)
-            await channel.send("REMINDER : PUT OUT " + bin.bin + "!")
+        if bin.date == datetime.now().date() + timedelta(1):
+            channel = client.get_channel(1121473898375020694)
+            message = await channel.send("REMINDER : PUT OUT " + bin.bin + "!")
+            await message.add_reaction("🗑️")
+            await asyncio.sleep(10800)
+            check = True
+            newmsg = await message.channel.fetch_message(message.id)
+            for reaction in newmsg.reactions:
+                if reaction.count > 1:
+                    check = False
+            if check:
+                await channel.send("FINAL REMINDER : PUT OUT " + bin.bin + "!!!")
         if bin.date > datetime.now().date():
             breakflag = False
     if breakflag:
@@ -89,8 +94,8 @@ async def after_task():
 @checkBins.before_loop
 async def before_task():
     print("now")
-    hour = 19
-    minute = 59
+    hour = 18
+    minute = 00
     now = datetime.now()
     print(now)
     future = datetime(now.year, now.month, now.day, hour, minute)
@@ -110,6 +115,8 @@ client = discord.Client(intents=intents)
 
 @client.event
 async def on_ready():
+    channel = client.get_channel(1121473898375020694)
+    await channel.send("ALMA BOT : ONLINE")
     bins = getMoreBinDates()
     checkBins.start(client, bins)
 
